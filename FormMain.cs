@@ -27,80 +27,7 @@ namespace генетический_алгоритм__версия_1_
         public List<BOT> bot = new List<BOT>();
         public int generation = 1;
         public byte game = 0;
-        public FormMain()
-        {
-            InitializeComponent();
-            pictureBot.SizeMode = PictureBoxSizeMode.StretchImage;
-        }
-        private void start_Click(object sender, EventArgs e)
-        {
-            t1 = new Thread(simulation);
-            if (game == 1)
-            {
-                t1.Start();
-                game = 2;
-                stop = false;
-                start.Text = "Stop";
-            }
-            else if (game == 2)
-            {
-                stop = true;
-                game = 1;
-                start.Text = "Start";
-            }
-        }
-        private void reset_Click(object sender, EventArgs e)
-        {
-            if (t1 != null)
-                t1.Abort();
-            generation = 1;
-            StopPoint = 0;
-            stop = true;
-            fieldX = NextFieldX;
-            fieldY = NextFieldY;
-            field = new byte[fieldX, fieldY];
-            for (int i = 0; i < fieldX; i++)
-                for (int j = 0; j < fieldY; j++)
-                {
-                    if (i == 0 || j == 0 || i == fieldX - 1 || j == fieldY - 1)
-                    {
-                        field[i, j] = 1;
-                    }
-                    else
-                    {
-                        field[i, j] = 0;
-                        if (rand.Next(50) == 0)
-                            field[i, j] = 1;
-                        else if (rand.Next(15) == 0)
-                            field[i, j] = 3;
-                        else if (rand.Next(40) == 0)
-                            field[i, j] = 4;
-                    }
-                }
-            bot.Clear();
-            for (int i = 0; i < 64; i++)
-            {
-                bot.Add(new BOT());
-                int X, Y;
-                while (true)
-                {
-                    X = rand.Next(1, fieldX);
-                    Y = rand.Next(1, fieldY);
-                    if (field[X, Y] == 0) break;
-                }
-                bot[i].X = X;
-                bot[i].Y = Y;
-                bot[i].rotate = (byte)rand.Next(8);
-                field[X, Y] = 2;
-            }
-            game = 1;
-            DrawField();
-        }
-        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
-        {
-            if (t1 != null)
-                t1.Abort();
-        }
+
         private void simulation()
         {
             int i = StopPoint;
@@ -233,42 +160,13 @@ namespace генетический_алгоритм__версия_1_
                     i = 0;
                     StopPoint = 0;
                     generation++;
-                    for (int l = 0; l < fieldX; l++)
-                        for (int j = 0; j < fieldY; j++)
-                        {
-                            field[l, j] = 0;
-                            if (l == 0 || j == 0 || l == fieldX - 1 || j == fieldY - 1)
-                            {
-                                field[l, j] = 1;
-                            }
-                            else
-                            {
-                                field[l, j] = 0;
-                                if (rand.Next(50) == 0)
-                                    field[l, j] = 1;
-                                else if (rand.Next(15) == 0)
-                                    field[l, j] = 3;
-                                else if (rand.Next(40) == 0)
-                                    field[l, j] = 4;
-                            }
-                        }
                     for (int l = 0; l < 64; l++)
                     {
-                        int X, Y;
-                        while (true)
-                        {
-                            X = rand.Next(1, fieldX);
-                            Y = rand.Next(1, fieldY);
-                            if (field[X, Y] == 0) break;
-                        }
-                        bot[l].X = X;
-                        bot[l].Y = Y;
                         bot[l].counter = 0;
                         bot[l].energy = 100;
                         bot[l].transitio = 0;
-                        bot[l].rotate = (byte)rand.Next(8);
-                        field[X, Y] = 2;
                     }
+                    NewField();
                 }
                 else if (rand.Next(15) == 0)
                     if (rand.Next(2) == 0)
@@ -340,6 +238,182 @@ namespace генетический_алгоритм__версия_1_
                     pictureBot.Image = bmp;
             }
         }
+        public void SaveEveryBot(byte[] NewGene, byte NewEnergy)
+        {
+            for (int i = 0; i < bot.Count; i++)
+            {
+                bot[i].NewGene(NewGene);
+                bot[i].energy = NewEnergy;
+                bot[i].counter = 0;
+            }
+        }
+        private void autoSave()
+        {
+            if (fileName != null)
+                System.IO.File.WriteAllBytes(fileName, GetSave());
+        }
+        public byte[] GetSave()
+        {
+            List<byte> save = new List<byte>();
+            //сохраняем основные данные: длина и высота поля, генерация и стоп точка
+            save.Add((byte)(fieldX / 256)); save.Add((byte)fieldX);
+            save.Add((byte)(fieldY / 256)); save.Add((byte)fieldY);
+            save.Add((byte)(generation / 256 / 256 / 256)); save.Add((byte)(generation / 256 / 256));
+            save.Add((byte)(generation / 256)); save.Add((byte)generation);
+            save.Add((byte)StopPoint);
+            //сохраняем игровое поле
+            int countBlock = 0, Block = 1;
+            for (int j = 0; j < fieldY; j++)
+                for (int i = 0; i < fieldX; i++)
+                {
+                    if (field[i, j] == Block)
+                        countBlock++;
+                    else
+                    {
+                        save.Add((byte)(countBlock / 256)); save.Add((byte)countBlock);
+                        save.Add((byte)Block);
+                        Block = field[i, j];
+                        countBlock = 1;
+                    }
+                }
+            save.Add((byte)(countBlock / 256)); save.Add((byte)countBlock);
+            save.Add((byte)Block);
+            //сохраняем ботов
+            save.Add((byte)bot.Count);
+            for (int i = 0; i < bot.Count; i++)
+            {
+                for (int j = 0; j < 64; j++)
+                    save.Add(bot[i].gene[j]);
+                save.Add(bot[i].energy);
+                save.Add(bot[i].counter);
+                save.Add(bot[i].rotate);
+                save.Add((byte)(bot[i].X / 256)); save.Add((byte)bot[i].X);
+                save.Add((byte)(bot[i].Y / 256)); save.Add((byte)bot[i].Y);
+            }
+            return save.ToArray();
+        }
+        public void SetSave(byte[] save)
+        {
+            int counter = 0;
+            //считываем основные данные
+            fieldX = save[counter++] * 256 + save[counter++];
+            fieldY = save[counter++] * 256 + save[counter++];
+            field = new byte[fieldX, fieldY];
+            generation = save[counter++] * 256 * 256 * 256 + save[counter++] * 256 * 256 +
+                save[counter++] * 256 + save[counter++];
+            StopPoint = save[counter++];
+            //считываем данные об игровом поле
+            int BlockCount = save[counter++] * 256 + save[counter++], Block = save[counter++];
+            for (int j = 0; j < fieldY; j++)
+                for (int i = 0; i < fieldX; i++)
+                {
+                    if (BlockCount == 0)
+                    {
+                        BlockCount = save[counter++] * 256 + save[counter++];
+                        Block = save[counter++];
+
+                    }
+                    field[i, j] = (byte)Block;
+                    BlockCount--;
+                }
+            //считываем данные о ботах
+            int botCount = save[counter++];
+            bot.Clear();
+            for (int i = 0; i < botCount; i++)
+            {
+                bot.Add(new BOT());
+                for (int j = 0; j < 64; j++)
+                    bot[i].gene[j] = save[counter++];
+                bot[i].energy = save[counter++];
+                bot[i].counter = save[counter++];
+                bot[i].rotate = save[counter++];
+                bot[i].X = save[counter++] * 256 + save[counter++];
+                bot[i].Y = save[counter++] * 256 + save[counter++];
+            }
+        }
+        private void NewField()
+        {
+            fieldX = NextFieldX;
+            fieldY = NextFieldY;
+            field = new byte[fieldX, fieldY];
+            for (int i = 0; i < fieldX; i++)
+                for (int j = 0; j < fieldY; j++)
+                {
+                    if (i == 0 || j == 0 || i == fieldX - 1 || j == fieldY - 1)
+                    {
+                        field[i, j] = 1;
+                    }
+                    else
+                    {
+                        field[i, j] = 0;
+                        if (rand.Next(50) == 0)
+                            field[i, j] = 1;
+                        else if (rand.Next(15) == 0)
+                            field[i, j] = 3;
+                        else if (rand.Next(40) == 0)
+                            field[i, j] = 4;
+                    }
+                }
+            for (int i = 0; i < 64; i++)
+            {
+                int X, Y;
+                while (true)
+                {
+                    X = rand.Next(1, fieldX);
+                    Y = rand.Next(1, fieldY);
+                    if (field[X, Y] == 0) break;
+                }
+                bot[i].X = X;
+                bot[i].Y = Y;
+                bot[i].rotate = (byte)rand.Next(8);
+                field[X, Y] = 2;
+            }
+        }
+
+        public FormMain()
+        {
+            InitializeComponent();
+            pictureBot.SizeMode = PictureBoxSizeMode.StretchImage;
+        }
+        private void start_Click(object sender, EventArgs e)
+        {
+            t1 = new Thread(simulation);
+            if (game == 1)
+            {
+                t1.Start();
+                game = 2;
+                stop = false;
+                start.Text = "Stop";
+            }
+            else if (game == 2)
+            {
+                stop = true;
+                game = 1;
+                start.Text = "Start";
+            }
+        }
+        private void reset_Click(object sender, EventArgs e)
+        {
+            if (t1 != null)
+                t1.Abort();
+            generation = 1;
+            StopPoint = 0;
+            stop = true;
+            fieldX = NextFieldX;
+            fieldY = NextFieldY;
+            field = new byte[fieldX, fieldY];
+            bot.Clear();
+            for (int i = 0; i < 64; i++)
+                bot.Add(new BOT());
+            NewField();
+            game = 1;
+            DrawField();
+        }
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            if (t1 != null)
+                t1.Abort();
+        }
         private void options_Click(object sender, EventArgs e)
         {
             game = 1;
@@ -367,38 +441,6 @@ namespace генетический_алгоритм__версия_1_
                     FormBot newForm = new FormBot(this, i);
                     newForm.ShowDialog();
                 }
-            }
-        }
-        public void SaveEveryBot(byte[] NewGene, byte NewEnergy)
-        {
-            for (int i = 0; i < bot.Count; i++)
-            {
-                bot[i].NewGene(NewGene);
-                bot[i].energy = NewEnergy;
-                bot[i].counter = 0;
-            }
-        }
-        private void autoSave()
-        {
-            if (fileName != null)
-            {
-                string save = null;
-                save += Convert.ToString(fieldX) + " " + Convert.ToString(fieldY) + " " + Convert.ToString(generation) + " " + Convert.ToString(StopPoint) + "й";
-                for (int j = 0; j < fieldY; j++)
-                    for (int i = 0; i < fieldX; i++)
-                        save += Convert.ToString(field[i, j]) + " ";
-                save += "й";
-                for (int i = 0; i < bot.Count; i++)
-                {
-                    for (int j = 0; j < 64; j++)
-                        save += Convert.ToString(bot[i].gene[j]) + " ";
-                    save += Convert.ToString(bot[i].energy) + " ";
-                    save += Convert.ToString(bot[i].counter) + " ";
-                    save += Convert.ToString(bot[i].rotate) + " ";
-                    save += Convert.ToString(bot[i].X) + " ";
-                    save += Convert.ToString(bot[i].Y) + "ц";
-                }
-                System.IO.File.WriteAllText(fileName, save);
             }
         }
     }
